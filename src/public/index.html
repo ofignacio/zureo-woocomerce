@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sincronizacion de productos</title>
+    <style>
+        h1,
+        p {
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .form-product {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            max-width: 500px;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            top: 50%;
+        }
+
+        #codes {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1em;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        .button {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1em;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            outline: none;
+            opacity: 0.7;
+            color: white;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+
+        .button:hover {
+            opacity: 1;
+        }
+
+        .list {
+            background-color: darkslategray;
+        }
+
+        .all {
+            background-color: darkred
+        }
+    </style>
+</head>
+
+<body>
+    <form class="form-product">
+        <h1>Sincronizar productos</h1>
+        <textarea id="codes" placeholder="SKU separado por coma (,)" value="AL31, SX13, ..."></textarea>
+        <input class="button list" type="button" value="Sincronizar lista" onclick="handleSubmit('list')" />
+        <input class="button all" type="button" value="Sincronizar todos los productos" onclick="handleSubmit('all')" />
+        <p>El sistema valida cada X tiempo si hay cambios en los productos por lo cual esto puede generar muchas
+            peticiones y que el servidor de Zureo nos bloquee entre 5 a 30 minutos, en caso de no funcionar el
+            actualizar, volver a probar en un rato</p>
+    </form>
+    <script>
+        function handleSubmit(type) {
+            return function () {
+                const codes = document.getElementById('codes');
+                if (!codes || codes.value.length === 0) {
+                    alert('El campo de texto esta vacio');
+                    return;
+                }
+
+                if (type === 'list') {
+                    if (codes && codes.value.length) {
+                        fetch(`http://localhost:8080/products/list?codes=${codes.value.trim()}`, {
+                            method: 'POST',
+                            mode: 'cors',
+                            cache: 'no-cache',
+                            credentials: 'same-origin',
+                            headers: {
+                                Accept: 'application/json',
+                                'Content-Type': 'application/json',
+                                'Access-Control-Allow-Origin': '*',
+                                'Accept-Encoding': 'gzip, compress, br',
+                            },
+                        });
+                        alert(`El/los producto/s se actualizara/n dentro de ${codes.value.split(',').length * 2} minutos`)
+                    } else {
+                        alert('No se reconoce el elemento con códigos');
+                    }
+                } else {
+                    fetch('http://localhost:8080/products/sync', { method: 'POST' });
+                }
+            }();
+        }
+    </script>
+</body>
+
+</html>
