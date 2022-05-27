@@ -30,6 +30,13 @@ export const createTag = async (params) => {
   });
 };
 
+export const getTag = async (params) => {
+  return await fetchW('/wp-json/wc/v3/products/tags', {
+    method: 'GET',
+    params,
+  });
+};
+
 export const createProduct = async (params) => {
   return await fetchW('/wp-json/wc/v3/products', {
     method: 'POST',

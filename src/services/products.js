@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from "fs";
 
 import {
   getProducts as getProductsWoo,
@@ -13,13 +13,14 @@ import {
   uploadFile,
   deleteProduct,
   createTag,
-} from '../repositories/woocomerce';
+  getTag,
+} from "../repositories/woocomerce";
 import {
   getProducts as getProductsZureo,
   getImages,
   getCategories as getCategoriesZ,
   getCategory as getCategoryZ,
-} from '../repositories/zureo';
+} from "../repositories/zureo";
 
 let running = false;
 
@@ -48,22 +49,29 @@ const insideCategories = async (category, parent) => {
 };
 
 export const sync = async () => {
-  if (running) return;
+  if (running) {
+    console.log("It's running, cancel request");
+    return;
+  }
   try {
+    // Logs
     running = true;
-    console.log('Empezo');
-    const categories = await getCategoriesZ({ emp: 1 });
+    console.log("Empezo");
 
+    // Get all categories from Zureo and create in Wordpres
+    const categories = await getCategoriesZ({ emp: 1 });
     if (categories && categories.data) {
       for (const category of categories.data) {
         insideCategories(category);
       }
     }
 
+    // Start product variables
     let temporalProducts = [];
     let zuproducts = [];
     let pagePro = 0;
 
+    // Get all products from Zureo
     do {
       const d = await getProductsZureo({ emp: 1, from: pagePro });
       temporalProducts = d.data;
@@ -71,10 +79,12 @@ export const sync = async () => {
       pagePro += 1000;
     } while (temporalProducts.length);
 
+    // Start category variables
     let temporalCategories = [];
     let categoriesW = [];
     let pageCat = 1;
 
+    // Get all categories from Wordpres
     do {
       temporalCategories = await getCategoriesW({
         per_page: 100,
@@ -84,26 +94,40 @@ export const sync = async () => {
       pageCat++;
     } while (temporalCategories.length);
 
+    // Create an initial counter to log added products
     let counter = 1;
 
-    //Create or update products
+    // Core process
     for (const zproduct of zuproducts) {
       try {
-        if (zproduct.baja && !zproduct.codigo) {
-          let productsToDelete = await getProductsWoo({ tag: zproduct.id });
+        // Deleted products
+        if (zproduct.baja) {
+          let productsToDelete;
+          if (!zproduct.codigo) {
+            productToDelete = await getProductsWoo({ tag: zproduct.id });
+          } else {
+            productToDelete = await getProductsWoo({ sku: zproduct.codigo });
+          }
 
-          let productToDelete = productsToDelete.length
-            ? productsToDelete[0]
-            : null;
+          let productToDelete =
+            productsToDelete && productsToDelete.length
+              ? productsToDelete[0]
+              : null;
 
           if (productToDelete) {
             await deleteProduct({ id: productToDelete.id });
           }
-        } else {
+        }
+        // Start Create/Update products
+        else {
+          // Get all products from Wordpres that contains the same sku (only one)
           let wproduct = await getProductsWoo({ sku: zproduct.codigo });
           wproduct = wproduct.length ? wproduct[0] : null;
+
+          // Start image variable
           let images = [];
 
+          // If zureo product didn't delete and didn't exist in Wordpres, create it
           if (!zproduct.baja && !wproduct) {
             const cat = categoriesW.find(
               (c) =>
@@ -111,44 +135,55 @@ export const sync = async () => {
                 zproduct.tipo.id &&
                 c.slug === `${zproduct.tipo.id}`
             );
-            const { data: tag } = await createTag({ name: zproduct.id });
+            const newTag = await createTag({ name: zproduct.id });
             await createProduct({
               name: zproduct.nombre,
-              type: 'simple',
+              type: "simple",
               regular_price: `${zproduct.precio * zproduct.impuesto}`,
               description: zproduct.descripcion_larga,
               short_description: zproduct.descripcion_corta,
               sku: zproduct.codigo,
               stock_quantity: zproduct.stock,
-              stock_status: zproduct.stock > 0 ? 'instock' : 'outofstock',
-              images: images.length ? images : null,
+              stock_status: zproduct.stock > 0 ? "instock" : "outofstock",
+              // images: images.length ? images : null,
               categories: cat ? [{ id: cat.id }] : null,
-              tags: [{ id: tag.id, name: tag.name }],
+              tags: [{ id: newTag.id, name: newTag.name }],
             });
-          } else if (wproduct) {
+          }
+          // If product exists, update it
+          else if (wproduct) {
             const cat = categoriesW.find(
               (c) =>
                 zproduct.tipo &&
                 zproduct.tipo.id &&
                 c.slug === `${zproduct.tipo.id}`
             );
+            const tags = await getTag({ search: zproduct.id });
+            let tag = tags && tags.length ? tags[0] : null;
+            if (!tag) {
+              tag = await createTag({ name: zproduct.id });
+            }
             await updateProduct({
               id: wproduct.id,
               name: zproduct.nombre,
-              type: 'simple',
+              type: "simple",
               regular_price: `${zproduct.precio * zproduct.impuesto}`,
               description: zproduct.descripcion_larga,
               short_description: zproduct.descripcion_corta,
               sku: zproduct.codigo,
               stock_quantity: zproduct.stock,
-              stock_status: zproduct.stock > 0 ? 'instock' : 'outofstock',
+              stock_status: zproduct.stock > 0 ? "instock" : "outofstock",
               // images: images.length ? images : null,
               categories: cat ? [{ id: cat.id }] : null,
-              status: zproduct.baja ? 'private' : 'publish',
-              catalog_visibility: zproduct.baja ? 'hidden' : 'visible',
+              status: zproduct.baja ? "private" : "publish",
+              catalog_visibility: zproduct.baja ? "hidden" : "visible",
+              tags: [{ id: tag.id, name: tag.name }],
             });
           }
         }
+        // End Create/Update products
+
+        // Log counter and zureo products size
         console.log(`${counter} / ${zuproducts.length}`);
         counter++;
       } catch (error) {
@@ -165,29 +200,35 @@ export const sync = async () => {
       if (zimages && zimages.data && zimages.data.length) {
         wproduct = await getProductsWoo({ sku: zproduct.codigo });
         wproduct = wproduct.length ? wproduct[0] : null;
-        for (const i of zimages.data) {
-          fs.writeFileSync(`./${i.filename}`, Buffer.from(i.base64, 'base64'));
-          const image = await uploadFile(
-            fs.readFileSync(`./${i.filename}`),
-            i.filename
-          );
-          images.push({ src: image.source_url });
-          fs.unlinkSync(`./${i.filename}`);
-        }
+        if (wproduct && wproduct.images && !wproduct.images.length) {
+          for (const i of zimages.data) {
+            fs.writeFileSync(
+              `./${i.filename}`,
+              Buffer.from(i.base64, "base64")
+            );
+            const image = await uploadFile(
+              fs.readFileSync(`./${i.filename}`),
+              i.filename
+            );
+            images.push({ src: image.source_url });
+            fs.unlinkSync(`./${i.filename}`);
+          }
 
-        if (images && images.length && wproduct) {
-          await updateProduct({
-            id: wproduct.id,
-            images: images.length ? images : null,
-          });
+          if (images && images.length) {
+            await updateProduct({
+              id: wproduct.id,
+              images: images.length ? images : null,
+            });
+          }
         }
       }
     }
-    console.log('Termino');
+
+    console.log("Termino");
     running = false;
   } catch (ex) {
     running = false;
-    console.log('Termino con error', ex);
+    console.log("Termino con error", ex);
     return;
   }
 };
@@ -233,12 +274,18 @@ export const syncList = async (products) => {
 
   for (const zproduct of zuproducts) {
     try {
-      if (zproduct.baja && !zproduct.codigo) {
-        let productsToDelete = await getProductsWoo({ tag: zproduct.id });
+      if (zproduct.baja) {
+        let productsToDelete;
+        if (!zproduct.codigo) {
+          productToDelete = await getProductsWoo({ tag: zproduct.id });
+        } else {
+          productToDelete = await getProductsWoo({ sku: zproduct.codigo });
+        }
 
-        let productToDelete = productsToDelete.length
-          ? productsToDelete[0]
-          : null;
+        let productToDelete =
+          productsToDelete && productsToDelete.length
+            ? productsToDelete[0]
+            : null;
 
         if (productToDelete) {
           await deleteProduct({ id: productToDelete.id });
@@ -253,7 +300,7 @@ export const syncList = async (products) => {
           for (const i of zimages.data) {
             fs.writeFileSync(
               `./${i.filename}`,
-              Buffer.from(i.base64, 'base64')
+              Buffer.from(i.base64, "base64")
             );
             const image = await uploadFile(
               fs.readFileSync(`./${i.filename}`),
@@ -271,17 +318,17 @@ export const syncList = async (products) => {
               zproduct.tipo.id &&
               c.slug === `${zproduct.tipo.id}`
           );
-          const { data: tag } = await createTag({ name: zproduct.id });
+          const newTag = await createTag({ name: zproduct.id });
           await createProduct({
             name: zproduct.nombre,
-            type: 'simple',
-            tags: [{ id: tag.id, name: tag.name }],
+            type: "simple",
+            tags: [{ id: newTag.id, name: newTag.name }],
             regular_price: `${zproduct.precio * zproduct.impuesto}`,
             description: zproduct.descripcion_larga,
             short_description: zproduct.descripcion_corta,
             sku: zproduct.codigo,
             stock_quantity: zproduct.stock,
-            stock_status: zproduct.stock > 0 ? 'instock' : 'outofstock',
+            stock_status: zproduct.stock > 0 ? "instock" : "outofstock",
             images: images.length ? images : null,
             categories: cat ? [{ id: cat.id }] : null,
           });
@@ -292,20 +339,26 @@ export const syncList = async (products) => {
               zproduct.tipo.id &&
               c.slug === `${zproduct.tipo.id}`
           );
+          const tags = await getTag({ search: zproduct.id });
+          let tag = tags && tags.length ? tags[0] : null;
+          if (!tag) {
+            tag = await createTag({ name: zproduct.id });
+          }
           await updateProduct({
             id: wproduct.id,
             name: zproduct.nombre,
-            type: 'simple',
+            type: "simple",
             regular_price: `${zproduct.precio * zproduct.impuesto}`,
             description: zproduct.descripcion_larga,
             short_description: zproduct.descripcion_corta,
             sku: zproduct.codigo,
             stock_quantity: zproduct.stock,
-            stock_status: zproduct.stock > 0 ? 'instock' : 'outofstock',
+            stock_status: zproduct.stock > 0 ? "instock" : "outofstock",
             images: images.length ? images : null,
             categories: cat ? [{ id: cat.id }] : null,
-            status: zproduct.baja ? 'private' : 'publish',
-            catalog_visibility: zproduct.baja ? 'hidden' : 'visible',
+            status: zproduct.baja ? "private" : "publish",
+            catalog_visibility: zproduct.baja ? "hidden" : "visible",
+            tags: [{ id: tag.id, name: tag.name }],
           });
         }
       }
