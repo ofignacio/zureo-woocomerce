@@ -78,7 +78,7 @@
 
                 if (type === 'list') {
                     if (codes && codes.value.length) {
-                        fetch(`http://localhost:8080/products/list?codes=${codes.value.trim()}`, {
+                        fetch(`https://escar.misionweb.com/products/list?codes=${codes.value.trim()}`, {
                             method: 'POST',
                             mode: 'cors',
                             cache: 'no-cache',
@@ -95,7 +95,7 @@
                         alert('No se reconoce el elemento con códigos');
                     }
                 } else {
-                    fetch('http://localhost:8080/products/sync', { method: 'POST' });
+                    fetch('https://escar.misionweb.com/products/sync', { method: 'POST' });
                 }
             }();
         }

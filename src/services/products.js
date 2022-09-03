@@ -21,6 +21,7 @@ import {
   getCategories as getCategoriesZ,
   getCategory as getCategoryZ,
 } from "../repositories/zureo";
+import { sleep } from "../utils/extras";
 
 let running = false;
 
@@ -50,13 +51,13 @@ const insideCategories = async (category, parent) => {
 
 export const sync = async () => {
   if (running) {
-    console.log("It's running, cancel request");
+    console.log(`[${new Date().toLocaleString()}]: It's running, cancel request`);
     return;
   }
   try {
     // Logs
     running = true;
-    console.log("Empezo");
+    console.log(`[${new Date().toLocaleString()}]: Started`);
 
     // Get all categories from Zureo and create in Wordpres
     const categories = await getCategoriesZ({ emp: 1 });
@@ -104,7 +105,7 @@ export const sync = async () => {
         if (zproduct.baja) {
           let productsToDelete;
           if (!zproduct.codigo) {
-            productToDelete = await getProductsWoo({ tag: zproduct.id });
+            productToDelete = await getProductsWoo({ tag: `${zproduct.id}` });
           } else {
             productToDelete = await getProductsWoo({ sku: zproduct.codigo });
           }
@@ -135,7 +136,7 @@ export const sync = async () => {
                 zproduct.tipo.id &&
                 c.slug === `${zproduct.tipo.id}`
             );
-            const newTag = await createTag({ name: zproduct.id });
+            const newTag = await createTag({ name: `${zproduct.id}` });
             await createProduct({
               name: zproduct.nombre,
               type: "simple",
@@ -158,10 +159,10 @@ export const sync = async () => {
                 zproduct.tipo.id &&
                 c.slug === `${zproduct.tipo.id}`
             );
-            const tags = await getTag({ search: zproduct.id });
+            const tags = await getTag({ search: `${zproduct.id}` });
             let tag = tags && tags.length ? tags[0] : null;
             if (!tag) {
-              tag = await createTag({ name: zproduct.id });
+              tag = await createTag({ name: `${zproduct.id}` });
             }
             await updateProduct({
               id: wproduct.id,
@@ -184,10 +185,10 @@ export const sync = async () => {
         // End Create/Update products
 
         // Log counter and zureo products size
-        console.log(`${counter} / ${zuproducts.length}`);
+        console.log(`[${new Date().toLocaleString()}]: ${counter} / ${zuproducts.length}`);
         counter++;
       } catch (error) {
-        console.log(`Can't insert ${counter} product`, error);
+        console.log(`[${new Date().toLocaleString()}]: Can't insert ${counter} product`, error);
       }
     }
 
@@ -206,10 +207,12 @@ export const sync = async () => {
               `./${i.filename}`,
               Buffer.from(i.base64, "base64")
             );
+            await sleep(5000);
             const image = await uploadFile(
               fs.readFileSync(`./${i.filename}`),
               i.filename
             );
+            await sleep(5000);
             images.push({ src: image.source_url });
             fs.unlinkSync(`./${i.filename}`);
           }
@@ -224,11 +227,11 @@ export const sync = async () => {
       }
     }
 
-    console.log("Termino");
+    console.log(`[${new Date().toLocaleString()}]: Finished`);
     running = false;
   } catch (ex) {
     running = false;
-    console.log("Termino con error", ex);
+    console.log(`[${new Date().toLocaleString()}]: Finished with error`, ex);
     return;
   }
 };
@@ -296,16 +299,19 @@ export const syncList = async (products) => {
         let images = [];
 
         const zimages = await getImages(zproduct.id);
+        console.log(`[${new Date().toLocaleString()}]: Getting images from Zureo`)
         if (zimages && zimages.data && zimages.data.length) {
           for (const i of zimages.data) {
             fs.writeFileSync(
               `./${i.filename}`,
               Buffer.from(i.base64, "base64")
             );
+            await sleep(5000);
             const image = await uploadFile(
               fs.readFileSync(`./${i.filename}`),
               i.filename
             );
+            await sleep(5000);
             images.push({ src: image.source_url });
             fs.unlinkSync(`./${i.filename}`);
           }
@@ -318,7 +324,7 @@ export const syncList = async (products) => {
               zproduct.tipo.id &&
               c.slug === `${zproduct.tipo.id}`
           );
-          const newTag = await createTag({ name: zproduct.id });
+          const newTag = await createTag({ name: `${zproduct.id}` });
           await createProduct({
             name: zproduct.nombre,
             type: "simple",
@@ -339,10 +345,10 @@ export const syncList = async (products) => {
               zproduct.tipo.id &&
               c.slug === `${zproduct.tipo.id}`
           );
-          const tags = await getTag({ search: zproduct.id });
+          const tags = await getTag({ search: `${zproduct.id}` });
           let tag = tags && tags.length ? tags[0] : null;
           if (!tag) {
-            tag = await createTag({ name: zproduct.id });
+            tag = await createTag({ name: `${zproduct.id}` });
           }
           await updateProduct({
             id: wproduct.id,
@@ -362,10 +368,10 @@ export const syncList = async (products) => {
           });
         }
       }
-      console.log(`${counter} / ${zuproducts.length}`);
+      console.log(`[${new Date().toLocaleString()}]: ${counter} / ${zuproducts.length}`);
       counter++;
     } catch (error) {
-      console.log(`Can't insert ${counter} product`, error);
+      console.log(`[${new Date().toLocaleString()}]: Can't insert ${counter} product`, error);
     }
   }
 };

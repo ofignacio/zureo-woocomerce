@@ -9,7 +9,7 @@ let auth;
 
 const generateToken = async () => {
   const ZUREO_API = process.env.ZUREO_API;
-  console.log("Call Zureo API to authenticate", new Date());
+  console.log(`[${new Date().toLocaleString()}]: Call Zureo API to authenticate`, new Date());
   const responseAuth = await fetch(`${ZUREO_API}/sdk/v1/security/login`, {
     method: "POST",
     headers: {
@@ -31,7 +31,7 @@ const generateToken = async () => {
 
 const refreshToken = async () => {
   const ZUREO_API = process.env.ZUREO_API;
-  console.log("Call Zureo API to refresh token", new Date());
+  console.log(`[${new Date().toLocaleString()}]: Call Zureo API to refresh token`, new Date());
   const responseAuth = await fetch(`${ZUREO_API}/sdk/v1/security/refresh`, {
     method: "GET",
     headers: {
@@ -85,11 +85,11 @@ export const fetchZ = async (route, { method = "GET", params }) => {
   });
 
   if (response.status === 401) {
-    console.log("Failed to auth, checking...");
+    console.log(`[${new Date().toLocaleString()}]: Failed to auth, checking...`);
     await generateToken();
     await fetchZ(route, { method, params });
   } else if (response.status === 429) {
-    console.log("Too many request, wait 20 minutes", new Date());
+    console.log(`[${new Date().toLocaleString()}]: Too many request, wait 20 minutes`, new Date());
     await sleep(1300000);
     await fetchZ(route, { method, params });
   } else if (response.status != 200) {
